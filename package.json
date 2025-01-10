@@ -1,7 +1,7 @@
 {
-  "name": "ally-custom-service",
-  "description": "Starter kit to create an Ally driver for an OAuth2 service",
-  "version": "0.0.0",
+  "name": "ally-azure-entraid",
+  "description": "An Ally driver for an Azure Entra ID OAuth2 service",
+  "version": "0.0.1",
   "main": "index.js",
   "type": "module",
   "files": [
@@ -30,12 +30,14 @@
     "@adonisjs/ally": "^5.0.0-7",
     "@adonisjs/core": "^6.1.5-32"
   },
-  "author": "",
+  "author": "Nuno Ribeiro",
   "license": "MIT",
   "keywords": [
     "social-auth",
     "adonisjs-ally",
-    "adonisjs"
+    "adonisjs",
+    "azure",
+    "entraid"
   ],
   "eslintConfig": {
     "extends": "@adonisjs/eslint-config/package"

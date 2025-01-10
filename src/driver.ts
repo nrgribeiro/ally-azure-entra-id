@@ -10,7 +10,7 @@
 
 /**
 |--------------------------------------------------------------------------
- *  Search keyword "YourDriver" and replace it with a meaningful name
+ *  Search keyword "AzureEntraId" and replace it with a meaningful name
 |--------------------------------------------------------------------------
  */
 
@@ -24,7 +24,7 @@ import type { AllyDriverContract, AllyUserContract, ApiRequestContract } from '@
  * token must have "token" and "type" properties and you may
  * define additional properties (if needed)
  */
-export type YourDriverAccessToken = {
+export type AzureEntraIdAccessToken = {
   token: string
   type: 'bearer'
 }
@@ -32,49 +32,50 @@ export type YourDriverAccessToken = {
 /**
  * Scopes accepted by the driver implementation.
  */
-export type YourDriverScopes = string
+export type AzureEntraIdScopes = string
 
 /**
  * The configuration accepted by the driver implementation.
  */
-export type YourDriverConfig = {
+export type AzureEntraIdConfig = {
   clientId: string
   clientSecret: string
   callbackUrl: string
   authorizeUrl?: string
   accessTokenUrl?: string
   userInfoUrl?: string
+  tenantId: string
+  scopes?: AzureEntraIdScopes[]
 }
 
 /**
  * Driver implementation. It is mostly configuration driven except the API call
  * to get user info.
  */
-export class YourDriver
-  extends Oauth2Driver<YourDriverAccessToken, YourDriverScopes>
-  implements AllyDriverContract<YourDriverAccessToken, YourDriverScopes>
-{
+export class AzureEntraId
+  extends Oauth2Driver<AzureEntraIdAccessToken, AzureEntraIdScopes>
+  implements AllyDriverContract<AzureEntraIdAccessToken, AzureEntraIdScopes> {
   /**
    * The URL for the redirect request. The user will be redirected on this page
    * to authorize the request.
    *
    * Do not define query strings in this URL.
    */
-  protected authorizeUrl = ''
+  protected authorizeUrl = 'https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize'
 
   /**
    * The URL to hit to exchange the authorization code for the access token
    *
    * Do not define query strings in this URL.
    */
-  protected accessTokenUrl = ''
+  protected accessTokenUrl = 'https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token'
 
   /**
    * The URL to hit to get the user details
    *
    * Do not define query strings in this URL.
    */
-  protected userInfoUrl = ''
+  protected userInfoUrl = 'https://graph.microsoft.com/oidc/userinfo'
 
   /**
    * The param name for the authorization code. Read the documentation of your oauth
@@ -95,7 +96,7 @@ export class YourDriver
    * approach is to prefix the oauth provider name to `oauth_state` value. For example:
    * For example: "facebook_oauth_state"
    */
-  protected stateCookieName = 'YourDriver_oauth_state'
+  protected stateCookieName = 'AzureEntraId_oauth_state'
 
   /**
    * Parameter name to be used for sending and receiving the state from.
@@ -117,9 +118,12 @@ export class YourDriver
 
   constructor(
     ctx: HttpContext,
-    public config: YourDriverConfig
+    public config: AzureEntraIdConfig
   ) {
     super(ctx, config)
+
+    this.authorizeUrl = this.authorizeUrl.replace('{tenant}', config.tenantId)
+    this.accessTokenUrl = this.accessTokenUrl.replace('{tenant}', config.tenantId)
 
     /**
      * Extremely important to call the following method to clear the
@@ -131,11 +135,21 @@ export class YourDriver
   }
 
   /**
-   * Optionally configure the authorization redirect request. The actual request
-   * is made by the base implementation of "Oauth2" driver and this is a
-   * hook to pre-configure the request.
-   */
-  // protected configureRedirectRequest(request: RedirectRequest<YourDriverScopes>) {}
+ * Configuring the redirect request with defaults for Microsoft Entra ID
+ */
+  configureRedirectRequest(request) {
+    // Set the default scopes if none are provided in the config
+    request.scopes(this.config.scopes || [
+      "openid",
+      "profile",
+      "User.Read",
+      "email"
+    ]);
+
+    // Microsoft-specific parameters for the redirect request
+    request.param("response_type", "code");
+
+  }
 
   /**
    * Optionally configure the access token request. The actual request is made by
@@ -161,40 +175,71 @@ export class YourDriver
    */
   async user(
     callback?: (request: ApiRequestContract) => void
-  ): Promise<AllyUserContract<YourDriverAccessToken>> {
+  ): Promise<AllyUserContract<AzureEntraIdAccessToken>> {
     const accessToken = await this.accessToken()
-    const request = this.httpClient(this.config.userInfoUrl || this.userInfoUrl)
+    const request = this.httpClient(this.config.userInfoUrl || this.userInfoUrl).header(
+      'Authorization',
+      `Bearer ${accessToken.token}`
+    )
 
-    /**
-     * Allow end user to configure the request. This should be called after your custom
-     * configuration, so that the user can override them (if needed)
-     */
+    // Allow further configuration if needed
     if (typeof callback === 'function') {
       callback(request)
     }
 
-    /**
-     * Write your implementation details here.
-     */
+    // Fetch user data from Microsoft Graph API
+    // Send the request to get user data
+    const response = await request.get()
+
+    // Check if the response is a string, and parse if necessary
+    const userData = typeof response === 'string' ? JSON.parse(response) : response
+
+    return {
+      id: userData['sub'] || userData.id, // Using `sub` for OpenID or `id` as fallback
+      nickName: userData.name,
+      name: userData.name,
+      email: userData.email || userData.userPrincipalName, // Support both fields
+      avatarUrl: userData.picture, // Microsoft Graph doesn't return photo by default
+      emailVerificationState: 'verified',
+      original: userData,
+      token: {
+        token: accessToken.token,
+        type: accessToken.type,
+      },
+    }
   }
 
   async userFromToken(
     accessToken: string,
     callback?: (request: ApiRequestContract) => void
   ): Promise<AllyUserContract<{ token: string; type: 'bearer' }>> {
-    const request = this.httpClient(this.config.userInfoUrl || this.userInfoUrl)
+    const request = this.httpClient(this.config.userInfoUrl || this.userInfoUrl).header(
+      'Authorization',
+      `Bearer ${accessToken}`
+    )
 
-    /**
-     * Allow end user to configure the request. This should be called after your custom
-     * configuration, so that the user can override them (if needed)
-     */
+    // Allow further configuration if needed
     if (typeof callback === 'function') {
       callback(request)
     }
 
-    /**
-     * Write your implementation details here
-     */
+    // Fetch user data from Microsoft Graph API
+    const userResponse = await request.get()
+    const userData = userResponse.body()
+
+    return {
+      id: userData.sub || userData.id,
+      nickName: userData.displayName,
+      name: userData.displayName,
+      email: userData.mail || userData.userPrincipalName,
+      avatarUrl: userData.photo,
+      emailVerificationState: 'verified',
+      original: userData,
+      token: {
+        token: accessToken,
+        type: 'bearer',
+      },
+    }
   }
 }
 
@@ -202,6 +247,6 @@ export class YourDriver
  * The factory function to reference the driver implementation
  * inside the "config/ally.ts" file.
  */
-export function YourDriverService(config: YourDriverConfig): (ctx: HttpContext) => YourDriver {
-  return (ctx) => new YourDriver(ctx, config)
+export function AzureEntraIdService(config: AzureEntraIdConfig): (ctx: HttpContext) => AzureEntraId {
+  return (ctx) => new AzureEntraId(ctx, config)
 }
