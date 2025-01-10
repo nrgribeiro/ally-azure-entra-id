@@ -2,19 +2,9 @@
 |--------------------------------------------------------------------------
 | Ally Oauth driver
 |--------------------------------------------------------------------------
-|
-| Make sure you through the code and comments properly and make necessary
-| changes as per the requirements of your implementation.
-|
 */
 
-/**
-|--------------------------------------------------------------------------
- *  Search keyword "AzureEntraId" and replace it with a meaningful name
-|--------------------------------------------------------------------------
- */
-
-import { Oauth2Driver } from '@adonisjs/ally'
+import { Oauth2Driver, RedirectRequest } from '@adonisjs/ally'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { AllyDriverContract, AllyUserContract, ApiRequestContract } from '@adonisjs/ally/types'
 
@@ -44,7 +34,7 @@ export type AzureEntraIdConfig = {
   authorizeUrl?: string
   accessTokenUrl?: string
   userInfoUrl?: string
-  tenantId: string
+  tenantDomain: string
   scopes?: AzureEntraIdScopes[]
 }
 
@@ -122,8 +112,8 @@ export class AzureEntraId
   ) {
     super(ctx, config)
 
-    this.authorizeUrl = this.authorizeUrl.replace('{tenant}', config.tenantId)
-    this.accessTokenUrl = this.accessTokenUrl.replace('{tenant}', config.tenantId)
+    this.authorizeUrl = this.authorizeUrl.replace('{tenant}', config.tenantDomain)
+    this.accessTokenUrl = this.accessTokenUrl.replace('{tenant}', config.tenantDomain)
 
     /**
      * Extremely important to call the following method to clear the
@@ -137,7 +127,7 @@ export class AzureEntraId
   /**
  * Configuring the redirect request with defaults for Microsoft Entra ID
  */
-  configureRedirectRequest(request) {
+  configureRedirectRequest(request: RedirectRequest<AzureEntraIdScopes>) {
     // Set the default scopes if none are provided in the config
     request.scopes(this.config.scopes || [
       "openid",
