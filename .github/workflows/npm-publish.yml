@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - run: npm build
+      - run: npm run build
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
