@@ -1,7 +1,7 @@
 {
   "name": "ally-azure-entraid",
   "description": "An Ally driver for an Azure Entra ID OAuth2 service",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "main": "index.js",
   "type": "module",
   "files": [
